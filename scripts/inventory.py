@@ -284,7 +284,10 @@ def main():
             for i in issues:
                 print("  ⚠ " + i)
             print(f"\n共 {len(issues)} 项需要处理。")
-            return 2
+            # 1 = 有需处理项；2 保留给「无可体检内容」。
+            # 此前返回 2，与《工程纪律》「2 = 输入没内容，不是通过」撞义，
+            # 门禁按 2 当作"输入坏了重跑"就会把真实问题放过。
+            return 1
         print("\n没有发现问题。")
     return 0
 

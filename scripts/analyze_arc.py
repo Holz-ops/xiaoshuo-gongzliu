@@ -22,7 +22,7 @@ from difflib import SequenceMatcher
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from chapter_num import ChapterError, parse_chapter  # noqa: E402  章号唯一来源
-from chapter_num import is_non_chapter  # noqa: E402
+from chapter_num import is_non_chapter, is_title_line  # noqa: E402
 from textio import read_text_or_none, write_text  # noqa: E402
 
 # 角色分级：按"在故事里的功能"设缺席阈值，不搞一刀切
@@ -30,24 +30,15 @@ from textio import read_text_or_none, write_text  # noqa: E402
 #   major 主要配角（女主、关键线索人物）——12 章
 #   minor 次要角色——20 章
 #   tool  功能角色（偶尔出现、本来就是工具人）——不报警
-# 用法：按本书实际改这张表；不在表内的角色按 minor 处理。
-CHARACTER_LEVEL = {
-    '林北': 'main',
-    '老郑': 'main',
-    '小刘': 'major',
-    '艾米': 'major',
-    '沈默': 'major',
-    '老赵': 'minor',
-    '王磊': 'minor',
-    '姓蔡的': 'minor',
-    '阿鬼': 'minor',
-    '老白': 'minor',
-    '赵铭': 'minor',
-    '老潘': 'tool',
-    '方烈': 'tool',
-}
+#
+# ⚠️ **这里不再写死具体书名的人名**。此前硬编码了另一本书的 13 个角色
+# （林北/老郑/艾米…），换一本书后「人物出场矩阵」永远是空表、永远输出
+# 「无超过各自级别阈值的缺席」—— 不是"没缺席"，是**根本没在查**（恒真假阴性）。
+# 现在改为从 `001 世界观/设定基准表.md` 的「三、人物」表读取，
+# 或用 `--characters 周野,孟昭,宋萤` 直接指定；两者都没有就明确报「本项跳过」。
 LEVEL_THRESHOLD = {'main': 8, 'major': 12, 'minor': 20, 'tool': 999}
-CHARACTERS = list(CHARACTER_LEVEL.keys())
+CHARACTERS = []          # 运行时由 load_characters() 填充
+CHARACTER_LEVEL = {}
 
 ENV_WORDS = ('光|灯|亮|暗|黑|影子|风|沙|雨|雪|雾|空气|味|气味|潮|干|冷|凉|热|烫|温|'
              '天|云|日头|太阳|月|星|地平线|顶棚|房顶|天花板|墙|地|地面|地板|沙地|泥|'
@@ -70,6 +61,68 @@ def chapter_no(path):
         return None
 
 
+def find_character_table(md_dir):
+    """从 md 目录向上找 `001 世界观/设定基准表.md`（最多 4 层）。"""
+    cur = os.path.abspath(md_dir)
+    for _ in range(4):
+        cand = os.path.join(cur, '001 世界观', '设定基准表.md')
+        if os.path.isfile(cand):
+            return cand
+        parent = os.path.dirname(cur)
+        if parent == cur:
+            break
+        cur = parent
+    return None
+
+
+def parse_character_table(text):
+    """从设定基准表的「三、人物」表里取人名与级别。
+
+    表格形如 `| **周野** | 主角，22 岁，第九层管道班维修工 |`：
+    第一列是人名（去 ** 与空白），第二列含「主角」判 main，其余按 major。
+    只收第一列不超过 8 个字的（排除说明性行）。
+    """
+    out = {}
+    in_section = False
+    for line in text.split('\n'):
+        s = line.strip()
+        if s.startswith('##'):
+            in_section = ('人物' in s)
+            continue
+        if not in_section or not s.startswith('|'):
+            continue
+        cells = [c.strip() for c in s.strip('|').split('|')]
+        if len(cells) < 2:
+            continue
+        name = cells[0].replace('*', '').replace('`', '').strip()
+        if not name or name in ('角色', '人物', '名字') or set(name) <= set('-: '):
+            continue
+        if len(name) > 8 or ' ' in name:
+            continue
+        out[name] = 'main' if '主角' in cells[1] else 'major'
+    return out
+
+
+def load_characters(md_dir, spec):
+    """确定本书要追踪哪些人物。返回 (人名列表, 级别表, 来源说明)。"""
+    if spec:
+        if os.path.isfile(spec):
+            text = read_text_or_none(spec) or ''
+            table = parse_character_table(text)
+            if table:
+                return list(table), table, f'--characters 文件：{os.path.basename(spec)}'
+        names = [x.strip() for x in spec.replace('，', ',').split(',') if x.strip()]
+        if names:
+            return names, {n: 'major' for n in names}, '--characters 参数'
+    path = find_character_table(md_dir)
+    if path:
+        text = read_text_or_none(path) or ''
+        table = parse_character_table(text)
+        if table:
+            return list(table), table, f'设定基准表：{os.path.basename(os.path.dirname(os.path.dirname(path)))}/001 世界观/设定基准表.md'
+    return [], {}, ''
+
+
 def load(path):
     # 走 textio 严格回退；读不出（含乱码）返回 None，由调用方登记跳过。
     text = read_text_or_none(path)
@@ -80,8 +133,10 @@ def load(path):
     # paras 那一路有 l.strip() 兜底所以照常，只有数字场景这一条静默失效。
     text = text.replace('\r\n', '\n').replace('\r', '\n')
     lines = [l.strip() for l in text.split('\n')]
-    title = next((l for l in lines if l.startswith('#')), '')
-    paras = [l for l in lines if l and not l.startswith('#') and l != '——']
+    # 标题行判定走 chapter_num.is_title_line：裸写的「第10章：大抢修」也算标题。
+    # 之前只认 `#` 开头，导致标题被当正文第一段，开场句比对全在比标题。
+    title = next((l for l in lines if is_title_line(l)), '')
+    paras = [l for l in lines if l and not is_title_line(l) and l != '——']
     return title, paras, text
 
 
@@ -118,11 +173,27 @@ def analyse(path):
         'env_pct': round(env_p / max(len(paras), 1) * 100, 1),
         'cast': casts,
         'first': paras[0][:40] if paras else '',
-        'last': paras[-1][:40] if paras else '',
+        # 结尾取末段的**最后一句**，不是末段开头 40 字。
+        # 原先取 paras[-1][:40]，语义上根本不是「结尾」，下面的「结尾句式分布」
+        # 也就变成了「末段开头句式分布」，两个检测都在看错的位置。
+        'last': last_sentence(paras[-1]) if paras else '',
     }
 
 
+def last_sentence(para, limit=40):
+    """取段落最后一句（以。！？… 结尾），过长再截断。"""
+    if not para:
+        return ''
+    parts = [s for s in re.split(r'(?<=[。！？…])', para) if s.strip()]
+    tail = parts[-1].strip() if parts else para.strip()
+    return tail[:limit]
+
+
 def similar(a, b):
+    # 空串守卫：SequenceMatcher(None, '', '').ratio() == 1.0，
+    # 只有标题没有正文的章两两相邻会报"相似度 1.00 的雷同开场"，全是假报警。
+    if not a or not b:
+        return 0.0
     return SequenceMatcher(None, a, b).ratio()
 
 
@@ -133,10 +204,19 @@ def main():
     ap.add_argument('--out', dest='report_out')
     ap.add_argument('--zhanggang', dest='zhanggang',
                     help='可选：章纲文件路径，用于「认知过山车」检测（读每行 [爆]/[紧]/[缓]/[静] 张力标记）')
+    ap.add_argument('--characters', dest='characters', default='',
+                    help='可选：人物表。给文件路径（设定基准表）或逗号分隔人名；'
+                         '不给则自动找 <书>/001 世界观/设定基准表.md')
     args = ap.parse_args()
 
-    candidates = [f for f in glob.glob(os.path.join(args.md_dir, '*.md'))
-                  if not os.path.basename(f).startswith('_')]
+    global CHARACTERS, CHARACTER_LEVEL
+    CHARACTERS, CHARACTER_LEVEL, char_src = load_characters(args.md_dir, args.characters)
+
+    # 递归扫子目录：分卷（`第一卷/`）是常态，非递归会把整卷报成「没内容」。
+    candidates = [f for f in glob.glob(os.path.join(args.md_dir, '**', '*.md'), recursive=True)
+                  if not os.path.basename(f).startswith('_')
+                  and not any(part.startswith(('_', '.'))
+                              for part in os.path.relpath(f, args.md_dir).split(os.sep)[:-1])]
 
     rows, skipped = [], []
     for f in sorted(candidates, key=lambda p: (chapter_no(p) is None, chapter_no(p) or 0, p)):
@@ -198,10 +278,18 @@ def main():
             if run_lo > max_lo[0]: max_lo = (run_lo, r['no'])
         else:
             run_hi = run_lo = 0
-    P(f'- 最长「高对话连续段」：{max_hi[0]} 章（到第 {max_hi[1]} 章）'
-      f'（阈值 > 均值+{BAND:g}%）')
-    P(f'- 最长「低对话连续段」：{max_lo[0]} 章（到第 {max_lo[1]} 章）'
-      f'（阈值 < 均值-{BAND:g}%；与均值持平的章不计入任一侧）')
+    # 没有一段时不要打「0 章（到第 None 章）」—— None 泄漏到报告里很难看，
+    # 而且读者会以为是 bug。分开两种情况说清楚。
+    if max_hi[0]:
+        P(f'- 最长「高对话连续段」：{max_hi[0]} 章（到第 {max_hi[1]} 章）'
+          f'（阈值 > 均值+{BAND:g}%）')
+    else:
+        P(f'- 最长「高对话连续段」：无（无章超过均值+{BAND:g}%）')
+    if max_lo[0]:
+        P(f'- 最长「低对话连续段」：{max_lo[0]} 章（到第 {max_lo[1]} 章）'
+          f'（阈值 < 均值-{BAND:g}%；与均值持平的章不计入任一侧）')
+    else:
+        P(f'- 最长「低对话连续段」：无（无章低于均值-{BAND:g}%；与均值持平的章不计入任一侧）')
     # 连续同向要**分两种含义**——它们指向的问题相反，不能一句"节奏偏平"糊过去。
     #
     # 依据（小说 ≠ 剧本）：电影能可视化的就别用对白，小说缺可视化手段，
@@ -223,6 +311,14 @@ def main():
 
     # ---- 2 人物出场 ----
     P('## 二、人物出场矩阵\n')
+    if not CHARACTERS:
+        # 没有人物表就明说"本项没查"，不能打一张空表然后写「无超过阈值的缺席」
+        # —— 那是在报告"查过了没问题"，而事实是根本没查。
+        P('> ⚠️ 未提供人物表，本项**未检查**。'
+          '请用 `--characters 周野,孟昭,宋萤` 指定，'
+          '或在 `001 世界观\\设定基准表.md` 的「三、人物」表里列出角色后重跑。\n')
+    else:
+        P(f'> 人物来源：{char_src}（共 {len(CHARACTERS)} 人）\n')
     P('| 角色 | 级别 | 出场章数 | 首现 | 末现 | 最长缺席 | 缺席区间 |')
     P('|---|---|---|---|---|---|---|')
     missing_alerts = []
@@ -237,7 +333,11 @@ def main():
         for x in chs[1:]:
             gaps.append((x - prev - 1, prev, x))
             prev = x
-        gaps.append((n - chs[-1], chs[-1], n))
+        # 右端点用**最后一个已分析的章号**，不是章节总数 n：
+        # n 是「有多少章」，与「最后一章是第几章」无关。缺号/跳号时用 n 会算出
+        # 负的缺席（实测 1..10 缺第 3 章 → 算出 -1，输出「10→9」倒流区间）。
+        last_no = rows[-1]['no']
+        gaps.append((max(last_no - chs[-1], 0), chs[-1], last_no))
         mx = max(gaps) if gaps else (0, 0, 0)
         if mx[0]:
             P(f'| {c} | {lv} | {len(chs)} | {chs[0]} | {chs[-1]} | {mx[0]} 章 | {mx[1]}→{mx[2]} |')
@@ -250,7 +350,7 @@ def main():
         P('⚠️ **长期缺席**（按角色级别判定：主角核心 8 章／主要配角 12 章／次要 20 章）：')
         for c, lv, g, a, b, th in sorted(missing_alerts, key=lambda x: -x[2] / max(x[5], 1)):
             P(f'- **{c}**（{lv}，阈值 {th} 章）：第 {a} 章之后连续 **{g} 章**未出现')
-    else:
+    elif CHARACTERS:
         P('无超过各自级别阈值的缺席。')
     P('')
 
@@ -295,9 +395,13 @@ def main():
     for k, v in cnt.items():
         if v:
             P(f'- {k}：{v} 章')
-    top = max(cnt.items(), key=lambda x: x[1])
-    if top[1] >= n * 0.3:
-        P(f'  ⚠️ 「{top[0]}」占 {top[1]}/{n}（≥30%）→ 结尾句式偏同质')
+    if not any(cnt.values()):
+        # 全 0 时原来只留一个空标题，读者不知道是"没数据"还是"脚本坏了"
+        P('- 未匹配到上述任一句式（统计口径：每章末段最后一句）')
+    else:
+        top = max(cnt.items(), key=lambda x: x[1])
+        if top[1] >= n * 0.3:
+            P(f'  ⚠️ 「{top[0]}」占 {top[1]}/{n}（≥30%）→ 结尾句式偏同质')
     P('')
 
     # ---- 4 语言趋势 ----

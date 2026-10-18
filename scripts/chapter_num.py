@@ -26,13 +26,23 @@ CN = {"零": 0, "〇": 0, "一": 1, "二": 2, "两": 2, "三": 3, "四": 4,
       "五": 5, "六": 6, "七": 7, "八": 8, "九": 9}
 D = "零一二三四五六七八九"          # 输出用，不含「两」（规范写法是「二百」）
 UNITS = [(1000, "千"), (100, "百"), (10, "十")]
+UNITS_AND_WAN = {"十": 10, "百": 100, "千": 1000, "万": 10000}
+# 位权字：这些字出现在「逐位写法」里是错的（`一两` 不是 12、`一百一` 不是 101），
+# 逐位分支必须排除它们，否则会静默算出错的章号。
+# 注意「零/〇」**要留在逐位集合里** —— 一零一 = 101 是《红楼梦》的真实写法。
+_POSITIONAL_UNITS = {"十", "百", "千", "万"}
 
 # 章号字符集：必须含「零」「两」「千」，否则「一百零五」「两百」会被静默跳过
 _CH = "0-9零〇一二两三四五六七八九十百千万"
 CHAPTER_CHARS = _CH
-CHAPTER_FILE_RE = re.compile(r"第([" + _CH + r"]+)章")
-CHAPTER_HEAD_RE = re.compile(r"^(#{0,6})\s*第([" + _CH + r"]+)章")
-CHAPTER_TITLE_STRIP = re.compile(r"^第[" + _CH + r"]+章[　:：\s]*")
+# 单位字：**章/回/节/段 一律认**。
+# txt_split/epub 切出来的古典章回体文件是 `第001回：标题.md`，此前解析器只认
+# 「章」，于是 count_chars / lint_prose / analyze_arc / md2docx **全部**把这些
+# 稿子判为「文件名不含第N章」而静默跳过 —— 流水线在第一步就断了，且不报错。
+UNIT_CH = "章回节段"
+CHAPTER_FILE_RE = re.compile(r"第([" + _CH + r"]+)([" + UNIT_CH + r"])")
+CHAPTER_HEAD_RE = re.compile(r"^(#{0,6})\s*第([" + _CH + r"]+)([" + UNIT_CH + r"])")
+CHAPTER_TITLE_STRIP = re.compile(r"^第[" + _CH + r"]+[" + UNIT_CH + r"][　:：\s]*")
 
 MAX_CHAPTER = 9999
 _FULLWIDTH = str.maketrans("０１２３４５６７８９", "0123456789")
@@ -46,6 +56,30 @@ NON_CHAPTER_MARKERS = ("序章", "番外", "前言", "后记", "楔子")
 def is_non_chapter(name):
     """序章/番外一类：本就不该有「第N章」，属正常内容。"""
     return any(k in os.path.basename(str(name)) for k in NON_CHAPTER_MARKERS)
+
+
+# 裸标题行的判定（正文 md 里章标题常常**不带 #**，直接写「第10章：大抢修」）。
+# 只判「整行就是章标题」：以 第N章/回/节 开头，且整行不超过 40 字。
+# 不加长度限制会误伤正文段落（「第三章的事他不想提，可车间里人人都在提」）。
+_NAKED_TITLE_RE = re.compile(
+    r"^第[" + _CH + r"]+[" + UNIT_CH + r"][：:\s、.．\-—]?.{0,32}$")
+
+
+def is_title_line(line):
+    """这一行是不是章标题（`# 第X章` 或裸写的 `第X章：标题`）。
+
+    **analyze_arc / lint_prose 必须用它剔除标题行**：此前只过滤 `#` 开头的行，
+    而这些稿子的标题不带 `#`，于是标题被当成正文第一段 ——
+    开场句比对实际在比「第10章：大抢修」这类标题（相似度 0.71、0.82 全是假报警），
+    字数也把标题算了进去。
+    """
+    s = str(line).strip()
+    if not s:
+        return False
+    if s.startswith("#"):
+        # markdown 标题行一律算标题（含 `# 第X章`、`## 小标题`）
+        return True
+    return bool(_NAKED_TITLE_RE.match(s))
 
 
 class ChapterError(ValueError):
@@ -64,7 +98,8 @@ def cn2int(s):
         raise ChapterError("章号为空")
     if s.isdigit():
         n = int(s)
-    elif len(s) > 1 and all(ch in CN for ch in s):
+    elif len(s) > 1 and all(ch in CN for ch in s) \
+            and not any(ch in _POSITIONAL_UNITS for ch in s):
         # **逐位写法**：一一九 = 119、一二零 = 120、一〇一 = 101。
         # 此前按位权解析会把「一一九」算成 9、「一二零」算成 0 并报错——
         # 《红楼梦》第 119/120 回正是这两种写法（实测算错）。
@@ -84,7 +119,7 @@ def cn2int(s):
                 if ch == "十" and not started:
                     number = 1          # 「十五」= 15
                     started = True
-                unit = dict(UNITS_AND_WAN)[ch]
+                unit = UNITS_AND_WAN[ch]
                 section += number * unit
                 number = 0
                 started = False
@@ -94,9 +129,6 @@ def cn2int(s):
     if n > MAX_CHAPTER:
         raise ChapterError(f"章号 {n} 超出支持范围 1~{MAX_CHAPTER}")
     return n
-
-
-UNITS_AND_WAN = {"十": 10, "百": 100, "千": 1000, "万": 10000}
 
 
 def num2cn(n):
@@ -156,13 +188,16 @@ def parse_chapter(name):
     # 此前用 `group(2).replace("-", "")` 剥连字符 —— 那是**无差别全文剥离**：
     # 合法标题「第一章：重启-1998」会被改成「重启1998」，于是 inventory 拿
     # 规范名去比对永远对不上，反过来建议用户删掉连字符。连字符是标题的一部分。
-    m = re.match(r"第([" + _CH + r"]+)章[：:\s\-—–]*(.*)", stem)
+    m = re.match(r"第([" + _CH + r"]+)[" + UNIT_CH + r"][：:\s\-—–]*(.*)", stem)
     if m:
         return cn2int(m.group(1)), m.group(2).strip()
+    # 首行标题分支：走 parse_chapter 的是**文件名**，不是文件内容，
+    # 所以这里只能匹配「文件名本身就是标题」的情形（例如 `第十七章：上报.md`
+    # 已被上一条覆盖，本条兜住 `# 第十七章` 这类带井号的文件名）。
     m2 = CHAPTER_HEAD_RE.match(str(name).strip())
     if m2:
         return cn2int(m2.group(2)), CHAPTER_TITLE_STRIP.sub("", str(name).strip()).strip()
-    raise ChapterError(f"文件名不含「第N章」格式：{os.path.basename(str(name))}")
+    raise ChapterError(f"文件名不含「第N章/回/节」格式：{os.path.basename(str(name))}")
 
 
 def expected_docx_name(n, title, sep="："):

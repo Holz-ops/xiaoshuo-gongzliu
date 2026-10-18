@@ -30,7 +30,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from chapter_num import ChapterError, parse_chapter  # noqa: E402  章号唯一来源
-from chapter_num import is_non_chapter  # noqa: E402
+from chapter_num import is_non_chapter, is_title_line  # noqa: E402
 from textio import read_text_or_none  # noqa: E402  严格解码回退
 
 # ============ 一、密度指标（正向） ============
@@ -102,8 +102,10 @@ def chapter_no(path):
 
 
 def clean_body(text):
+    # 标题行判定走 chapter_num.is_title_line：裸写的「第10章：大抢修」也算标题，
+    # 否则它会被当成正文第一段，环境/动作/神态密度与字数都被它污染。
     lines = [l.strip() for l in text.split('\n')]
-    return [l for l in lines if l and not l.startswith('#') and l != '——']
+    return [l for l in lines if l and not is_title_line(l) and l != '——']
 
 
 def count(paras, pattern):
@@ -168,8 +170,11 @@ def main():
     ap.add_argument('--quiet', action='store_true')
     args = ap.parse_args()
 
-    candidates = [f for f in glob.glob(os.path.join(args.md_dir, '*.md'))
-                  if not os.path.basename(f).startswith('_')]
+    # 递归扫子目录：分卷（`第一卷/`）是常态，非递归会把整卷报成「没内容」。
+    candidates = [f for f in glob.glob(os.path.join(args.md_dir, '**', '*.md'), recursive=True)
+                  if not os.path.basename(f).startswith('_')
+                  and not any(part.startswith(('_', '.'))
+                              for part in os.path.relpath(f, args.md_dir).split(os.sep)[:-1])]
 
     # 分三类：能分析的 / 预期内跳过（序章番外）/ 非预期跳过（读不出、无章号）
     rows, skipped = [], []
@@ -214,12 +219,15 @@ def main():
     if not args.quiet:
         print()
         for key, label, asc in [
-            ('env_pct', '【环境最薄】环境段占比最低', True),
-            ('face_k', '【神态最少】', True),
-            ('act_k', '【动作最少】', True),
+            ('env_pct', '【环境最薄】环境段占比', True),
+            ('face_k', '【神态最少】神态密度', True),
+            ('act_k', '【动作最少】动作密度', True),
         ]:
-            print(f'{label} 的 {args.top} 章')
-            for r in sorted(rows, key=lambda x: x[key] if asc else -x[key])[:args.top]:
+            # top 大于章节数时不能还写「的 15 章」——只有 3 章却印「15 章」，
+            # 读者会以为漏了 12 章。取实际条数。
+            k = min(args.top, len(rows))
+            print(f'{label} 最低的 {k} 章')
+            for r in sorted(rows, key=lambda x: x[key] if asc else -x[key])[:k]:
                 print(f'  第{r["no"]:>2}章  {r[key]:>6.1f}   {r["chapter"]}')
             print()
 

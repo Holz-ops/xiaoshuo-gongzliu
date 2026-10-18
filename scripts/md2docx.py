@@ -158,7 +158,10 @@ def call(edsdk, edir, tool, **kw):
     cmd = [sys.executable, edsdk, "call", tool] + [
         f"{k}={json.dumps(v, ensure_ascii=False)}" for k, v in kw.items()
     ]
-    r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", cwd=edir)
+    # errors="replace"：edsdk 在中文 Windows 控制台输出可能是 GBK，
+    # 只给 encoding 不给 errors 会抛 UnicodeDecodeError 直接崩栈。
+    r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8",
+                       errors="replace", cwd=edir)
     return (r.stdout or "") + (r.stderr or "")
 
 

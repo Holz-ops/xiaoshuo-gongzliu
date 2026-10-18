@@ -14,12 +14,17 @@ import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from chapter_num import ChapterError, parse_chapter, strip_chapter_prefix  # noqa: E402
+from chapter_num import (  # noqa: E402
+    CHAPTER_HEAD_RE, ChapterError, parse_chapter, strip_chapter_prefix,
+)
 from textio import read_text  # noqa: E402
 
 # 章号缺失的文件**单列一组**，不参与章序排序。
 # 此前用 9999 兜底，会让「缺章」伪装成「第 9999 章」，掩盖真问题。
-TITLE_RE = re.compile(r"^(?:#{1,6}\s*)?第[" + "0-9零一二两三四五六七八九十百千万" + r"]+章")
+# 正则复用 chapter_num（含 章/回/节/段 四种单位），不再自写一份 —— 自写的那份
+# 只认「章」，于是 txt_split 切出的「第001回：开端」标题没被剥离，
+# 章名会连前缀一起显示成"第001回：开端"。
+TITLE_RE = CHAPTER_HEAD_RE
 
 
 def chapter_no(path):
@@ -62,8 +67,14 @@ def main():
                     help="允许覆盖已存在的 --csv 文件")
     args = ap.parse_args()
 
+    # **递归扫子目录**：项目普遍把章放在 `第一卷/` 下（分卷是常态），
+    # 非递归的 `*.md` 会把 49 章的书报成「未找到 md 文件」，然后 exit=2。
+    # 排除 `_` 开头的文件与目录（_说明.md / _目录.md / 其他非正文产物）。
     files = sorted(
-        glob.glob(os.path.join(args.dir, "*.md")),
+        (f for f in glob.glob(os.path.join(args.dir, "**", "*.md"), recursive=True)
+         if not os.path.basename(f).startswith("_")
+         and not any(part.startswith(("_", "."))
+                     for part in os.path.relpath(f, args.dir).split(os.sep)[:-1])),
         key=lambda p: (chapter_no(p) is None, chapter_no(p) or 0, p))
     unnumbered = [f for f in files if chapter_no(f) is None]
     if not files:
@@ -112,7 +123,8 @@ def main():
         if no is not None:
             dup.setdefault(no, []).append(title)
     print("-" * (w + 24))
-    print(f"共 {len(rows)} 章，合计 {total} 字，均 {total // len(rows) if rows else 0} 字")
+    print(f"共 {len(rows)} 章，合计 {total} 字，均 {total / len(rows):.1f} 字"
+          if rows else "共 0 章")
     if unnumbered:
         print(f"\n⚠ {len(unnumbered)} 个文件无「第N章」编号（未参与章序排序）："
               + "、".join(os.path.basename(f) for f in unnumbered[:6])
@@ -142,8 +154,13 @@ def main():
     if unreadable:
         print(f"\n⚠ {len(unreadable)} 个文件读不出、未计入总字数："
               + "、".join(unreadable[:6]) + ("…" if len(unreadable) > 6 else ""))
+    # 退出码：0 通过 / 1 章号重号 / 2 无可统计内容 / 3 部分文件读不出（总字数不全）。
+    # 重号优先于「读不出」：两者同现时若返回 3，重号这条会被门禁忽略。
+    if conflicts:
+        return 1
+    if unreadable:
         return 3          # 部分未完成：总字数不全，别拿它去对平台规格
-    return 2 if conflicts else 0
+    return 0
 
 
 if __name__ == "__main__":

@@ -62,9 +62,10 @@ REQUIRED = [
     "SKILL.md",
     "CHANGELOG.md",
     "LICENSE",
-    # scripts（15 个）
+    # scripts（16 个）
     "scripts/analyze_arc.py",
     "scripts/calibrate.py",
+    "scripts/check_quotes.py",       # 引文回源核验；SKILL.md 已对外承诺，漏登记等于删了查不出
     "scripts/epub_extract.py",
     "scripts/txt_split.py",
     "scripts/chapter_health.py",
@@ -121,7 +122,7 @@ REQUIRED = [
 # 下限设 10 而实际 11 时，删掉 1 个模板仍然"齐全"（实测漏检），残缺包照样出门。
 TPL_MIN = 13          # 模板数量下限（低于此视为安装损坏）
 SVG_EXPECT = 4        # 流程图数量
-SCRIPT_MIN = 15       # scripts/*.py 数量下限
+SCRIPT_MIN = 16       # scripts/*.py 数量下限（与 REQUIRED 里的 16 个对齐）
 REF_MIN = 14          # references/*.md 数量下限
 
 
@@ -174,7 +175,9 @@ EXCLUDE_FILES = {".DS_Store", "Thumbs.db"}
 SECRET_PAT = re.compile(
     r"(api[_-]?key|secret|token|password|passwd|Bearer\s|sk-[A-Za-z0-9]{16,}"
     r"|AKIA[0-9A-Z]{12,}|ghp_[A-Za-z0-9]{20,})", re.I)
-PRIVACY_PAT = re.compile(r"[A-Za-z]:\\Users\\[^\\\s\"']+")
+# 路径分隔符两种都要认：只写 \\ 会漏掉 `C:/Users/xxx/` 这种写法，
+# 而本文件自己的用法示例就是正斜杠形式 —— 等于漏检自己文档里的例子。
+PRIVACY_PAT = re.compile(r"[A-Za-z]:[\\/]Users[\\/][^\\\/\s\"']+")
 
 
 def allowed(rel):

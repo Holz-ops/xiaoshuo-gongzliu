@@ -107,7 +107,12 @@ def main():
     ap.add_argument("--limit", type=int, default=15)
     args = ap.parse_args()
 
-    files = sorted(glob.glob(os.path.join(args.dir, "*.md")))
+    # 递归扫子目录：分卷（`第一卷/`）是常态，非递归会把整卷报成「没内容」。
+    files = sorted(
+        f for f in glob.glob(os.path.join(args.dir, "**", "*.md"), recursive=True)
+        if not os.path.basename(f).startswith("_")
+        and not any(part.startswith(("_", "."))
+                    for part in os.path.relpath(f, args.dir).split(os.sep)[:-1]))
     skip_words = [w.strip() for w in args.exclude.split(",") if w.strip()]
     skipped = [f for f in files if any(w in os.path.basename(f) for w in skip_words)]
     if skip_words:
@@ -131,6 +136,7 @@ def main():
         pats.update(STRICT_ONLY)
 
     per_file = []          # (文件名, 正文) —— 供跨文件判定使用
+    unreadable = []        # 读不出正文的文件
 
     for f in files:
         base = os.path.basename(f)
@@ -138,8 +144,13 @@ def main():
             text = read_text(f)
         except (OSError, ValueError) as e:
             print(f"  ✗ 跳过 {base}：{e}")
+            unreadable.append(base)
             continue
         per_file.append((base, text))
+
+        # 行表在循环外算一次：此前在 RESIDUE 命中后才text.split("\n")，
+        # 等于每次命中都把整篇重新切一遍（O(n²)），长篇必卡。
+        lines = text.split("\n")
 
         for label, pat in pats.items():
             for m in pat.finditer(text):
@@ -149,7 +160,7 @@ def main():
         for label, pat in RESIDUE.items():
             for m in pat.finditer(text):
                 ln = text[: m.start()].count("\n") + 1
-                line = text.split("\n")[ln - 1].strip()
+                line = lines[ln - 1].strip()
                 # 首行的标题（`# 第X章 …`）是规范写法，不算 markdown 残留。
                 # 正则**复用 chapter_num**，不在这里另写一份字符类 ——
                 # 此前自写的 `[0-9一二三四五六七八九十百]` 缺「零/两/千」，
@@ -164,6 +175,13 @@ def main():
             if wrong in text:
                 ln = text[: text.index(wrong)].count("\n") + 1
                 conflicts.append(("疑似错别字", f"{base} 第{ln}行：「{wrong}」应为「{right}」"))
+
+    # 一个文件都读不出 → 绝不报「无冲突」。
+    # 那等于把「全部乱码/被占用」静默判成通过，是最危险的一种假阴性。
+    if not per_file:
+        print(f"\n✗ {len(unreadable)}/{len(files)} 个文件全部读不出正文，本次扫描无效。")
+        print("  请确认文件编码（textio 回退 utf-8-sig → utf-8 → gb18030）或文件未被占用。")
+        return 2
 
     # 专名混用：**跨文件汇总**判定。
     # 只在单文件内比对会漏掉最常见的形态 —— 各章各用一种写法，
@@ -197,15 +215,33 @@ def main():
         conflicts.append(("纪年不统一", f"{ {v: len(loc) for v, loc in eras.items()} }"))
 
     print("=" * 60)
-    print(f"扫描 {len(files)} 个文件" + (f"，跳过 {len(skipped)} 个非正文文件" if skipped else ""))
+    print(f"扫描 {len(files)} 个文件" + (f"，跳过 {len(skipped)} 个非正文文件" if skipped else "")
+          + (f"，{len(unreadable)} 个读不出" if unreadable else ""))
     print("=" * 60)
+
+    # 去重：同一文件同一行命中多次只留首条，附计数。
+    # 一张 30 行表格能凭空造出 32 条 markdown 残留，不去重会把报告刷爆、
+    # 淹没掉真正该看的那几条。
+    merged = {}
+    for label, msg in conflicts:
+        key = (label, msg)
+        merged[key] = merged.get(key, 0) + 1
+    conflicts = [(label, msg, n) for (label, msg), n in merged.items()]
 
     if conflicts:
         print(f"\n【CONFLICT】必须处理，共 {len(conflicts)} 处\n")
-        for label, msg in conflicts:
-            print(f"  [{label}] {msg}")
+        for label, msg, n in conflicts[: args.limit]:
+            tail = f"（同内容 ×{n}）" if n > 1 else ""
+            print(f"  [{label}] {msg}{tail}")
+        if len(conflicts) > args.limit:
+            print(f"  …另有 {len(conflicts) - args.limit} 条未列出（用 --limit 调整）")
     else:
         print("\n【CONFLICT】无\n")
+
+    # 没给 --terms 就明说「专名混用没查」，不能让人误以为查过了。
+    if not groups:
+        print("【提示】\n  · 专名混用检查未执行（未提供 --terms 词典）。"
+              "需要检查同义写法混用时，请用 --terms 指定词典。\n")
 
     if notes:
         print("【提示】\n")
@@ -224,7 +260,10 @@ def main():
             where = "、".join(files_hit[:3]) + ("…" if len(files_hit) > 3 else "")
             print(f"    {val:<16} 共 {len(loc):>3} 次   {where}")
     print("\n提示：日期与时间戳需对照设定基准表的时间轴；编号需对照编号总表查重。")
-    return 2 if conflicts else 0
+    # 退出码契约（全脚本统一）：0 通过 / 1 有必须处理的冲突 / 2 无可分析内容。
+    # 「有冲突」必须用 1而不是 2 —— 2 在《工程纪律》里定义为「输入没内容」，
+    # 门禁若按 2 当作「输入坏了，重跑」就会把真冲突放过。
+    return 1 if conflicts else 0
 
 
 if __name__ == "__main__":

@@ -106,6 +106,15 @@ def _mojibake_reason(text):
     return None
 
 
+def mojibake_reason(text):
+    """公开入口：返回乱码原因字符串，正常文本返回 None。
+
+    自带解码回退的脚本（如 txt_split）用它做体检，
+    免得 gb18030 把 Big5 稿静默解成乱码还切成一堆"章节"。
+    """
+    return _mojibake_reason(text)
+
+
 def read_text(path):
     """读文本文件。无法解码或解出乱码时抛 ValueError（**不返回坏内容**）。"""
     with open(path, "rb") as fh:

@@ -41,8 +41,9 @@ CURRENT = ('B', 'C', 'D')
 
 
 def scan(root):
-    """返回 {章号: {stage: (path, chars)}}，跳过 _ 开头与非章节文件。"""
+    """返回 ({章号: {stage: (path, chars)}}, [重号说明])，跳过 _ 开头与非章节文件。"""
     books = {}
+    dupes = []
     for stage, rel, _label in STAGES:
         base = os.path.join(root, rel)
         if not os.path.isdir(base):
@@ -58,8 +59,14 @@ def scan(root):
             text = read_text_or_none(p)
             chars = 0 if text is None else len(re.sub(r'\s', '', '\n'.join(
                 l for l in text.split('\n') if not l.startswith('#'))))
+            # 同一格里出现两个第N章（分卷子目录各一份）不能静默覆盖 ——
+            # 覆盖掉的那一份从此在索引上彻底消失，看起来像"没写过"。
+            if stage in books.get(n, {}):
+                dupes.append(f'第{n}章在「{rel}」有重复稿：'
+                             f'{os.path.basename(books[n][stage][0])} 与 {name}')
+                continue
             books.setdefault(n, {})[stage] = (p, chars)
-    return books
+    return books, dupes
 
 
 def main():
@@ -73,12 +80,12 @@ def main():
         print(f'✗ 目录不存在：{args.book_dir}', file=sys.stderr)
         return 1
 
-    data = scan(args.book_dir)
+    data, dupes = scan(args.book_dir)
     if not data:
         print('✗ 四个文章格都没有可解析的章节文件（第N章*.md）', file=sys.stderr)
         return 2
 
-    rows, issues = [], 0
+    rows, issues = [], len(dupes)
     nums = sorted(data)
     # 断号：1..max 之间四格都没有的章（下限取最小已存在章，避免把序章算缺）
     for n in range(nums[0], nums[-1] + 1):
@@ -115,11 +122,21 @@ def main():
         cur = '/'.join(r['current']) or '—'
         print(f"{r['n']:>4} {mark}  {cur:<12} {'；'.join(r['issues']) or ''}")
 
-    # 版本库计数
-    ver = os.path.join(args.book_dir, '009 其他', '版本')
-    vcount = len(glob.glob(os.path.join(ver, '**', '*.md'), recursive=True)) if os.path.isdir(ver) else 0
-    print(f'\n版本库快照：{vcount} 个 md')
+    # 版本库计数：**只数 快照/ 下的 md**，与 inventory 的口径一致。
+    # 原先 glob('009 其他/版本/**/*.md') 把 _原稿/（只读原始稿）和
+    # init_book 生成的 版本索引.md 也算成"快照"——新书快照目录是空的，
+    # 却报「快照：1 个 md」，正好与事实相反。
+    snap_dir = os.path.join(args.book_dir, '009 其他', '版本', '快照')
+    vcount = len(glob.glob(os.path.join(snap_dir, '**', '*.md'), recursive=True)) \
+        if os.path.isdir(snap_dir) else 0
+    print(f'\n版本库快照：{vcount} 个 md（仅统计 009 其他/版本/快照/）')
     print('口径：当前稿唯一（AI/人/最终 三选一）；扩展文章是初稿归档，不算当前稿。')
+    if dupes:
+        print(f'\n⚠ 同格重号 {len(dupes)} 处（只登记了先扫到的那一份）：')
+        for d in dupes[:10]:
+            print(f'  · {d}')
+        if len(dupes) > 10:
+            print(f'  …另有 {len(dupes) - 10} 条')
 
     if args.write:
         out = os.path.join(args.book_dir, '008 进度', '文章索引.md')
@@ -138,7 +155,9 @@ def main():
         with open(args.json_out, 'w', encoding='utf-8') as f:
             json.dump(rows, f, ensure_ascii=False, indent=1)
 
-    return 2 if issues else 0
+    # 1 = 有问题章/重号（门禁禁放行）；2 = 无可索引内容。
+    # 此前用 2 表示"有问题"，与《工程纪律》里 2=「输入没内容」撞义。
+    return 1 if issues else 0
 
 
 if __name__ == '__main__':

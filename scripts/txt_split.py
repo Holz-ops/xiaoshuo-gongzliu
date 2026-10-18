@@ -20,7 +20,7 @@ import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from textio import write_text  # noqa: E402
+from textio import mojibake_reason, write_text  # noqa: E402
 
 NUM = r'[0-9零〇一二三四五六七八九十百千两]'
 # 1) 带卷前缀：第一卷(01--030章)第一回　标题 / 第二卷(31--60章)三十一　标题
@@ -35,12 +35,20 @@ AD_MARKS = ('txtsk.com', 'TXT书库', '更多免费txt', '本电子书仅供', '
 
 
 def decode(path):
-    raw = open(path, 'rb').read()
+    # 走 textio 的回退链 + 乱码体检：自带一份回退会把 Big5 稿用 gb18030
+    # 静默解成乱码，然后切成一堆"章节"，错得无声无息。
+    with open(path, 'rb') as f:
+        raw = f.read()
     for enc in ('utf-8-sig', 'utf-8', 'gb18030'):
         try:
-            return raw.decode(enc), enc
+            text = raw.decode(enc)
         except UnicodeDecodeError:
             continue
+        why = mojibake_reason(text)
+        if why:
+            print(f'⚠ 按 {enc} 解出疑似乱码（{why}）；该源文件可能是 Big5/其他编码，'
+                  f'切章结果不可信。建议先转码为 GB18030 或 UTF-8 再切。')
+        return text, enc
     raise ValueError('无法解码（非 UTF-8 / GB18030）')
 
 
