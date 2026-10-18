@@ -1,0 +1,22 @@
+<svg viewBox="0 0 680 348" width="100%" role="img" xmlns="http://www.w3.org/2000/svg">
+<title>改文章的三层分工与问题定位</title>
+<desc>第一层是文章层，负责按章纲扩写出正文；第二层是 AI 检查层，负责查字数一致性与穿帮等硬伤；第三层是人的层，负责判断好不好看，人提意见后由 AI 改，改好通过。</desc>
+<defs>
+<marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+<path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+</marker>
+</defs>
+<rect x="40" y="44" width="600" height="84" rx="12" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.5"/>
+<text x="60" y="68" font-size="14" font-weight="500" fill="#0C447C" font-family="sans-serif">第一层　文章层 —— 把东西写出来</text>
+<text x="60" y="90" font-size="11" fill="#185FA5" font-family="sans-serif">按章纲一句话扩写成正文，每章 2000~3000 字</text>
+<text x="60" y="110" font-size="11" fill="#185FA5" font-family="sans-serif">管：故事、人物、节奏、文风　｜　问题定位：写没写出来、情节合不合理</text>
+<path d="M340 128 L340 148" fill="none" stroke="#888780" stroke-width="1.5" marker-end="url(#arrow)"/>
+<rect x="40" y="152" width="600" height="84" rx="12" fill="#EEEDFE" stroke="#534AB7" stroke-width="0.5"/>
+<text x="60" y="176" font-size="14" font-weight="500" fill="#3C3489" font-family="sans-serif">第二层　AI 检查层 —— 查「对不对」</text>
+<text x="60" y="198" font-size="11" fill="#534AB7" font-family="sans-serif">跑脚本 + 对照两本问题本逐条打勾，出自查报告</text>
+<text x="60" y="218" font-size="11" fill="#534AB7" font-family="sans-serif">管：字数、一致性、穿帮、markdown 残留　｜　问题定位：硬伤一律在这层找</text>
+<path d="M340 236 L340 256" fill="none" stroke="#888780" stroke-width="1.5" marker-end="url(#arrow)"/>
+<rect x="40" y="260" width="600" height="68" rx="12" fill="#FAEEDA" stroke="#854F0B" stroke-width="0.5"/>
+<text x="60" y="284" font-size="14" font-weight="500" fill="#633806" font-family="sans-serif">第三层　人的层 —— 查「好不好」→ AI 改 → 通过</text>
+<text x="60" y="306" font-size="11" fill="#854F0B" font-family="sans-serif">人只看机器查不出的（节奏、爽感、人物讨不讨喜）→ 提意见 → AI 改 → 改好通过</text>
+</svg>

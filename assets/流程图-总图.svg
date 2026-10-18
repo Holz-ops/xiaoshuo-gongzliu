@@ -1,0 +1,64 @@
+<svg viewBox="0 0 680 570" width="100%" role="img" xmlns="http://www.w3.org/2000/svg">
+<title>中文网文综合流水线总图</title>
+<desc>两个入口汇入主干六步：报告、梗概、目录、章纲一句话、生成正文（含章纲回填）、复查，每步一道人工确认门；交付前须当场确认「⑥ 的门已通过」，该事实不可从档案继承；下一卷回到第 3 步目录。</desc>
+<defs>
+<marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+<path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+</marker>
+</defs>
+<rect x="150" y="48" width="180" height="48" rx="8" fill="#B5D4F4" stroke="#185FA5" stroke-width="0.5"/>
+<text x="240" y="66" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="500" fill="#042C53" font-family="sans-serif">新书入口</text>
+<text x="240" y="84" text-anchor="middle" dominant-baseline="central" font-size="11" fill="#0C447C" font-family="sans-serif">头脑风暴</text>
+<rect x="350" y="48" width="180" height="48" rx="8" fill="#B5D4F4" stroke="#185FA5" stroke-width="0.5"/>
+<text x="440" y="66" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="500" fill="#042C53" font-family="sans-serif">续写入口</text>
+<text x="440" y="84" text-anchor="middle" dominant-baseline="central" font-size="11" fill="#0C447C" font-family="sans-serif">素材体检 → 定基准</text>
+<path d="M240 96 L240 112 L315 112 L315 127" fill="none" stroke="#888780" stroke-width="1.5" marker-end="url(#arrow)"/>
+<path d="M440 96 L440 112 L315 112" fill="none" stroke="#888780" stroke-width="1.5"/>
+<rect x="150" y="130" width="330" height="44" rx="8" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.5"/>
+<text x="166" y="147" font-size="13" font-weight="500" fill="#0C447C" font-family="sans-serif">① 报告</text>
+<text x="166" y="164" font-size="11" fill="#185FA5" font-family="sans-serif">定题材 · 定基调 · 备齐梗概所需资料</text>
+<rect x="150" y="186" width="330" height="44" rx="8" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.5"/>
+<text x="166" y="203" font-size="13" font-weight="500" fill="#0C447C" font-family="sans-serif">② 梗概</text>
+<text x="166" y="220" font-size="11" fill="#185FA5" font-family="sans-serif">人物 · 主线 · 势力 · 卷结构 · 设定基准表</text>
+<rect x="150" y="242" width="330" height="44" rx="8" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.5"/>
+<text x="166" y="259" font-size="13" font-weight="500" fill="#0C447C" font-family="sans-serif">③ 目录</text>
+<text x="166" y="276" font-size="11" fill="#185FA5" font-family="sans-serif">分卷分章，把结果定下来</text>
+<rect x="150" y="298" width="330" height="44" rx="8" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.5"/>
+<text x="166" y="315" font-size="13" font-weight="500" fill="#0C447C" font-family="sans-serif">④ 章纲一句话</text>
+<text x="166" y="332" font-size="11" fill="#185FA5" font-family="sans-serif">每章要发生什么（事件 + 结果 + 钩子）</text>
+<rect x="150" y="354" width="330" height="44" rx="8" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.5"/>
+<text x="166" y="371" font-size="13" font-weight="500" fill="#0C447C" font-family="sans-serif">⑤ 生成正文（附：章纲回填）</text>
+<text x="166" y="388" font-size="11" fill="#185FA5" font-family="sans-serif">按章纲扩展，每章 2000~3000 字；写完自动进 ⑥（不停顿）</text>
+<rect x="150" y="410" width="330" height="44" rx="8" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.5"/>
+<text x="166" y="427" font-size="13" font-weight="500" fill="#0C447C" font-family="sans-serif">⑥ 复查（写查改闭环 · 三步走）</text>
+<text x="166" y="444" font-size="11" fill="#185FA5" font-family="sans-serif">AI 自查 → AI 据报告改稿 → 输出「修改报告 + 改后文章」等人确认</text>
+<rect x="150" y="466" width="330" height="44" rx="8" fill="#F1EFE8" stroke="#B4B2A9" stroke-width="0.5" stroke-dasharray="5 4"/>
+<text x="166" y="483" font-size="13" font-weight="500" fill="#2C2C2A" font-family="sans-serif">交付与交接（前置：⑥ 门已确认）</text>
+<text x="166" y="500" font-size="11" fill="#5F5E5A" font-family="sans-serif">章纲已变实际版 · 目录与 docx 配齐 · 问题本同步</text>
+<circle cx="492" cy="152" r="5" fill="#FFFFFF" stroke="#888780" stroke-width="1"/>
+<text x="504" y="152" dominant-baseline="central" font-size="11" fill="#5F5E5A" font-family="sans-serif">门</text>
+<circle cx="492" cy="208" r="5" fill="#FFFFFF" stroke="#888780" stroke-width="1"/>
+<text x="504" y="208" dominant-baseline="central" font-size="11" fill="#5F5E5A" font-family="sans-serif">门</text>
+<circle cx="492" cy="264" r="5" fill="#FFFFFF" stroke="#888780" stroke-width="1"/>
+<text x="504" y="264" dominant-baseline="central" font-size="11" fill="#5F5E5A" font-family="sans-serif">门</text>
+<circle cx="492" cy="320" r="5" fill="#FFFFFF" stroke="#888780" stroke-width="1"/>
+<text x="504" y="320" dominant-baseline="central" font-size="11" fill="#5F5E5A" font-family="sans-serif">门</text>
+<rect x="480" y="366" width="40" height="20" rx="4" fill="#FAEEDA" stroke="#854F0B" stroke-width="0.5"/>
+<text x="500" y="376" text-anchor="middle" dominant-baseline="central" font-size="11" fill="#854F0B" font-family="sans-serif">自动</text>
+<circle cx="492" cy="432" r="5" fill="#FFFFFF" stroke="#888780" stroke-width="1"/>
+<text x="504" y="432" dominant-baseline="central" font-size="11" fill="#5F5E5A" font-family="sans-serif">门</text>
+<rect x="540" y="410" width="100" height="44" rx="8" fill="#F1EFE8" stroke="#B4B2A9" stroke-width="0.5"/>
+<text x="590" y="426" text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="500" fill="#2C2C2A" font-family="sans-serif">问题本</text>
+<text x="590" y="444" text-anchor="middle" dominant-baseline="central" font-size="11" fill="#5F5E5A" font-family="sans-serif">改进记录</text>
+<path d="M537 432 L501 432" fill="none" stroke="#888780" stroke-width="1.5" marker-end="url(#arrow)"/>
+<path d="M315 174 L315 183" fill="none" stroke="#185FA5" stroke-width="1.5" marker-end="url(#arrow)"/>
+<path d="M315 230 L315 239" fill="none" stroke="#185FA5" stroke-width="1.5" marker-end="url(#arrow)"/>
+<path d="M315 286 L315 295" fill="none" stroke="#185FA5" stroke-width="1.5" marker-end="url(#arrow)"/>
+<path d="M315 342 L315 351" fill="none" stroke="#185FA5" stroke-width="1.5" marker-end="url(#arrow)"/>
+<path d="M315 398 L315 407" fill="none" stroke="#185FA5" stroke-width="1.5" marker-end="url(#arrow)"/>
+<path d="M315 454 L315 463" fill="none" stroke="#185FA5" stroke-width="1.5" marker-end="url(#arrow)"/>
+<path d="M150 488 L120 488 L120 264 L147 264" fill="none" stroke="#888780" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arrow)"/>
+<text x="150" y="530" font-size="11" fill="#5F5E5A" font-family="sans-serif">①②③④ 各一道门 + ⑥ 出口一道门：通过 / 修改 / 重来 三选一，未确认不进入下一步</text>
+<text x="150" y="544" font-size="11" fill="#854F0B" font-family="sans-serif">⑤ → ⑥ 自动衔接（不停顿、不等确认）：AI 分析 → 出报告 → 据报告改稿，改完才上门确认</text>
+<text x="150" y="562" font-size="11" fill="#5F5E5A" font-family="sans-serif">第二卷从 ③ 目录接着排，不必重做 ① ②</text>
+</svg>
